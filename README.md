@@ -12,6 +12,7 @@ A secure, production-ready ToDo application with JWT authentication, built with 
 - **API Communication:** Axios
 - **CORS Handling:** `django-cors-headers`
 - **Containerization:** Docker
+- **Web Server:** Nginx
 - **Security:** CORS, HTTPS-ready, token refresh
 
 ## 🚀 Features
@@ -73,12 +74,16 @@ todo-app/
 │   │   └── ...
 │   ├── package.json            # npm dependencies and scripts.
 │   ├── .eslintrc.json          # ESLint configuration.
-│   └── ...
+│   └── Dockerfile              # Docker configuration for containerizing the frontend.
 ├── .github/
 │   └── workflows/              # Directory for GitHub Actions workflows.
 │       ├── lint.yml            # Workflow for linting the codebase.
 │       ├── test.yml            # Workflow for running tests.
 │       └── build.yml           # Workflow for building the Docker image.
+├── nginx.conf                  # Nginx configuration file for serving the frontend and proxying API requests to the backend.
+├── Dockerfile                  # Docker configuration for combining the backend and frontend into a single image.
+├── docker-compose.yml          # Docker Compose file for managing the multi-container setup.
+├── LICENSE                     # MIT License 
 └── README.md                   # Project documentation.
 ```
 
@@ -147,23 +152,27 @@ cd frontend
 npm test
 ```
 
-## 🛠️ Additional Setup
-### 🐳 Docker
-To build and run the Docker container:
+### 🛠️ Additional Setup
+#### 🐳 Docker
+To build and run the Docker containers:
 
-#### Build the Docker image:
-```bash
-docker-compose build
-```
-#### Run the Docker container:
-```bash
-docker-compose up
-```
+1. **Build the Docker images:**
 
-### Environment Variables
-Create `.env` file in the backend directory with the following content:
+    ```bash
+    docker-compose build
+    ```
 
-```plain_text
+2. **Run the Docker containers:**
+
+    ```bash
+    docker-compose up
+    ```
+
+#### Environment Variables
+
+Create a `.env` file in the `backend` directory with the following content:
+
+```env
 SECRET_KEY=your_secret_key
 DEBUG=1
 DB_NAME=your_db_name
@@ -173,6 +182,77 @@ DB_HOST=your_db_host
 DB_PORT=your_db_port
 ```
 
+#### Nginx Configuration
+Ensure that Nginx is properly configured to serve the frontend and proxy API requests to the backend. The nginx.conf file should be placed in the root directory of your project.
+
+```config
+server {
+    listen 80;
+
+    location / {
+        root /usr/share/nginx/html;
+        try_files \$uri /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://localhost:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location /static/ {
+        alias /app/static/;
+    }
+
+    location /media/ {
+        alias /app/media/;
+    }
+}
+```
+
+#### Docker Compose
+Create a docker-compose.yml file in the root directory to manage the multi-container setup.
+```yml
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: todo-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - SECRET_KEY=your_secret_key
+      - DEBUG=1
+      - DB_NAME=your_db_name
+      - DB_USER=your_db_user
+      - DB_PASSWORD=your_db_password
+      - DB_HOST=your_db_host
+      - DB_PORT=your_db_port
+
+  frontend:
+    build: ./frontend
+    container_name: todo-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+
+  nginx:
+    build: .
+    container_name: todo-nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+```
 
 ## 🔌 API Endpoints
 | Method | Endpoint    						  | Description	      |
